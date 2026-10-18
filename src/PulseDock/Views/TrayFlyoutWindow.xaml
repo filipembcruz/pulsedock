@@ -1,0 +1,50 @@
+<Window x:Class="PulseDock.Views.TrayFlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:svc="clr-namespace:PulseDock.Services"
+        Title="{Binding [App], Source={x:Static svc:Loc.Instance}, Mode=OneWay}"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="Manual"
+        Left="-10000" Top="-10000"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{StaticResource TextBrush}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+    <Border Width="300" Style="{StaticResource WindowFrame}" Padding="4">
+        <StackPanel>
+            <DockPanel Margin="10,6,6,6">
+                <Border DockPanel.Dock="Right" Background="{StaticResource HoverBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding [ModeTray], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="11" Foreground="{StaticResource SoftTextBrush}" />
+                </Border>
+                <Path DockPanel.Dock="Left" Data="{StaticResource IconPulse}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.6"
+                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding [App], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <ItemsControl ItemsSource="{Binding Metrics}" ItemTemplate="{StaticResource CompactMetric}" Focusable="False" />
+
+            <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="12" Margin="0,6,0,8"
+                       Visibility="{Binding NetVisible, Converter={StaticResource BoolToVis}}">
+                <Run Text="↓" Foreground="{StaticResource DownBrush}" /><Run Text="{Binding NetDown, Mode=OneWay}" Foreground="{StaticResource DownBrush}" />
+                <Run Text="{Binding NetDownUnit, Mode=OneWay}" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                <Run Text="   ↑" Foreground="{StaticResource UpBrush}" /><Run Text="{Binding NetUp, Mode=OneWay}" Foreground="{StaticResource UpBrush}" />
+                <Run Text="{Binding NetUpUnit, Mode=OneWay}" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+            </TextBlock>
+
+            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="6,8,6,4">
+                <UniformGrid Columns="2">
+                    <Button Style="{StaticResource SecondaryButton}" Height="34" FontSize="12" Content="{Binding [PinToCorner], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Margin="0,0,4,0"
+                            Command="{Binding SetModeCommand}" CommandParameter="Overlay" />
+                    <Button Style="{StaticResource SecondaryButton}" Height="34" FontSize="12" Content="{Binding [Settings], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Margin="4,0,0,0"
+                            Command="{Binding OpenSettingsCommand}" />
+                </UniformGrid>
+            </Border>
+        </StackPanel>
+    </Border>
+</Window>

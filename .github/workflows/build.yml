@@ -1,0 +1,44 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to publish the Release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish (single .exe, no .NET required)
+        run: >
+          dotnet publish src/PulseDock/PulseDock.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:Version=0.1.${{ github.run_number }}
+          -o dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PulseDock-win-x64
+          path: dist/PulseDock.exe
+
+      # Every push to main becomes a Release with the .exe attached.
+      # ".../releases/latest/download/PulseDock.exe" always points to the newest one.
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.${{ github.run_number }}
+          name: PulseDock v0.1.${{ github.run_number }}
+          body: |
+            **Download `PulseDock.exe`** (Windows 10/11, 64-bit). No installation and no .NET required.
+            Just run it. On first launch it adds a PulseDock shortcut to the Start menu and desktop.
+          files: dist/PulseDock.exe
+          make_latest: true

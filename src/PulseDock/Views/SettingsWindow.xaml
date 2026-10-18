@@ -1,0 +1,200 @@
+<Window x:Class="PulseDock.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:svc="clr-namespace:PulseDock.Services"
+        Title="{Binding [WinSettings], Source={x:Static svc:Loc.Instance}, Mode=OneWay}"
+        Width="540" Height="780"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="True"
+        WindowStartupLocation="Manual"
+        Left="-10000" Top="-10000"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{StaticResource TextBrush}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+    <Border Style="{StaticResource WindowFrame}">
+        <DockPanel>
+            <!-- Header -->
+            <DockPanel DockPanel.Dock="Top" Margin="20,8,8,8" Background="Transparent" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" ToolTip="{Binding [Close], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Command="{Binding CancelCommand}">
+                    <Path Data="{StaticResource IconClose}" Style="{StaticResource IconPath}" Width="14" Height="14" />
+                </Button>
+                <TextBlock Text="{Binding [Settings], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+            <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource DividerBrush}" />
+
+            <!-- Footer -->
+            <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource SecondaryButton}" Content="{Binding [Cancel], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource PrimaryButton}" Content="{Binding [Save], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Command="{Binding SaveCommand}" IsDefault="True" />
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16,20,8">
+                <StackPanel>
+
+                    <!-- Mode -->
+                    <TextBlock Text="{Binding [DisplayMode], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" />
+                    <RadioButton Style="{StaticResource CardRadio}" GroupName="Mode" IsChecked="{Binding IsOverlay}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [ModeOverlay], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding [ModeOverlayDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource CardRadio}" GroupName="Mode" IsChecked="{Binding IsDesktop}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [ModeDesktopLong], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding [ModeDesktopDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource CardRadio}" GroupName="Mode" IsChecked="{Binding IsTray}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [ModeTrayLong], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding [ModeTrayDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <!-- Layout -->
+                    <TextBlock Text="{Binding [LayoutTitle], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,14,0,8" />
+                    <WrapPanel>
+                        <RadioButton Style="{StaticResource PillRadio}" GroupName="Layout" Content="{Binding [LayoutCompactV], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding IsCompactV}" />
+                        <RadioButton Style="{StaticResource PillRadio}" GroupName="Layout" Content="{Binding [LayoutExpanded], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding IsExpanded}" />
+                        <RadioButton Style="{StaticResource PillRadio}" GroupName="Layout" Content="{Binding [LayoutStripLong], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding IsCompactH}" />
+                    </WrapPanel>
+
+                    <!-- Language -->
+                    <TextBlock Text="{Binding [LanguageTitle], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,14,0,8" />
+                    <WrapPanel>
+                        <RadioButton Style="{StaticResource PillRadio}" GroupName="Language" Content="English" IsChecked="{Binding IsLangEn}" />
+                        <RadioButton Style="{StaticResource PillRadio}" GroupName="Language" Content="Português" IsChecked="{Binding IsLangPt}" />
+                        <RadioButton Style="{StaticResource PillRadio}" GroupName="Language" Content="{Binding [LangAuto], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding IsLangAuto}" />
+                    </WrapPanel>
+
+                    <!-- Corner -->
+                    <StackPanel Visibility="{Binding ShowsCorner, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding [ScreenCorner], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,14,0,8" />
+                        <DockPanel>
+                            <Border DockPanel.Dock="Left" Width="200" Height="124" BorderBrush="{StaticResource StrongBorderBrush}" BorderThickness="2"
+                                    CornerRadius="8" Background="{StaticResource SurfaceBrush}" Padding="5" Margin="0,0,18,0">
+                                <UniformGrid Rows="2" Columns="2">
+                                    <RadioButton Style="{StaticResource CornerRadio}" GroupName="Corner" IsChecked="{Binding IsTopLeft}"
+                                                 HorizontalContentAlignment="Left" VerticalContentAlignment="Top" ToolTip="{Binding [CornerTL], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                                    <RadioButton Style="{StaticResource CornerRadio}" GroupName="Corner" IsChecked="{Binding IsTopRight}"
+                                                 HorizontalContentAlignment="Right" VerticalContentAlignment="Top" ToolTip="{Binding [CornerTR], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                                    <RadioButton Style="{StaticResource CornerRadio}" GroupName="Corner" IsChecked="{Binding IsBottomLeft}"
+                                                 HorizontalContentAlignment="Left" VerticalContentAlignment="Bottom" ToolTip="{Binding [CornerBL], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                                    <RadioButton Style="{StaticResource CornerRadio}" GroupName="Corner" IsChecked="{Binding IsBottomRight}"
+                                                 HorizontalContentAlignment="Right" VerticalContentAlignment="Bottom" ToolTip="{Binding [CornerBR], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                                </UniformGrid>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CornerName}" FontSize="14" FontWeight="Medium" Margin="0,0,0,8" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding [EdgeDistance], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="12" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBox Style="{StaticResource DarkTextBox}" Width="56" Text="{Binding EdgeMargin, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="px" FontSize="12" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding [MonitorTitle], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,14,0,8" />
+                        <ItemsControl ItemsSource="{Binding Monitors}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <RadioButton Style="{StaticResource PillRadio}" GroupName="Monitor" Content="{Binding Label}" IsChecked="{Binding IsSelected}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Metrics -->
+                    <TextBlock Text="{Binding [VisibleMetrics], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,14,0,8" />
+                    <UniformGrid Columns="3">
+                        <CheckBox Style="{StaticResource ChipCheck}" Content="CPU" IsChecked="{Binding ShowCpu}" />
+                        <CheckBox Style="{StaticResource ChipCheck}" Content="{Binding [Memory], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding ShowMemory}" />
+                        <CheckBox Style="{StaticResource ChipCheck}" Content="{Binding [Disk], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding ShowDisk}" />
+                        <CheckBox Style="{StaticResource ChipCheck}" Content="GPU 0" IsChecked="{Binding ShowGpu0}" />
+                        <CheckBox Style="{StaticResource ChipCheck}" Content="GPU 1" IsChecked="{Binding ShowGpu1}" />
+                        <CheckBox Style="{StaticResource ChipCheck}" Content="{Binding [Network], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding ShowNetwork}" />
+                    </UniformGrid>
+
+                    <TextBlock Text="{Binding [MonitoredDisk], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,8,0,8" />
+                    <ItemsControl ItemsSource="{Binding Disks}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton Style="{StaticResource PillRadio}" GroupName="Disk" Content="{Binding Label}" IsChecked="{Binding IsSelected}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Behavior -->
+                    <TextBlock Text="{Binding [Behavior], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,14,0,4" />
+                    <DockPanel MinHeight="44">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding OpacityText}" FontFamily="{StaticResource MonoFont}" Width="44" TextAlignment="Right" VerticalAlignment="Center" />
+                        <Slider DockPanel.Dock="Right" Style="{StaticResource DarkSlider}" Width="170" Minimum="40" Maximum="100"
+                                SmallChange="1" LargeChange="10" IsSnapToTickEnabled="True" TickFrequency="1"
+                                Value="{Binding Opacity}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                        <TextBlock Text="{Binding [BgOpacity], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="13" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <DockPanel MinHeight="44">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <RadioButton Style="{StaticResource PillRadio}" GroupName="Interval" Content="{Binding [HalfSecond], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" IsChecked="{Binding Is500}" Margin="0,0,6,0" />
+                            <RadioButton Style="{StaticResource PillRadio}" GroupName="Interval" Content="1 s" IsChecked="{Binding Is1000}" Margin="0,0,6,0" />
+                            <RadioButton Style="{StaticResource PillRadio}" GroupName="Interval" Content="2 s" IsChecked="{Binding Is2000}" Margin="0,0,6,0" />
+                            <RadioButton Style="{StaticResource PillRadio}" GroupName="Interval" Content="5 s" IsChecked="{Binding Is5000}" Margin="0" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding [RefreshEvery], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="13" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding AutoStart}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [StartWithWindows], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                            <TextBlock Text="{Binding [StartWithWindowsDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding ClickThrough}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [ClickThrough], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                            <TextBlock Text="{Binding [ClickThroughDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding HideInFullscreen}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [HideFullscreen], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                            <TextBlock Text="{Binding [HideFullscreenDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <!-- Advanced sensors -->
+                    <TextBlock Text="{Binding [AdvancedSensors], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" Style="{StaticResource SectionTitle}" Margin="0,14,0,4" />
+                    <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding AdvancedSensors}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [CpuDiskTemp], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                            <TextBlock FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                                       Text="{Binding [CpuDiskTempDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}" />
+                        </StackPanel>
+                    </CheckBox>
+                    <Border Background="{StaticResource SurfaceBrush}" CornerRadius="10" Padding="14,12" Margin="0,6,0,8"
+                            Visibility="{Binding IsNotAdmin, Converter={StaticResource BoolToVis}}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Content="{Binding [RestartAdmin], Source={x:Static svc:Loc.Instance}, Mode=OneWay}"
+                                    Command="{Binding RestartAsAdminCommand}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                            <TextBlock Text="{Binding [NotAdminDesc], Source={x:Static svc:Loc.Instance}, Mode=OneWay}"
+                                       FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</Window>
