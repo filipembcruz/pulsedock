@@ -48,7 +48,7 @@
   - **CPU:** uso, frequência e temperatura¹.
   - **Memória:** usada / total.
   - **Disco:** atividade, velocidade de leitura e escrita, e temperatura¹.
-  - **GPU 0 (integrada) e GPU 1 (dedicada):** uso, VRAM e temperatura.
+  - **GPU 0 (integrada) e GPU 1 (dedicada):** uso, VRAM e temperatura. A da dedicada aparece enquanto ela está em uso, para nunca acordá-la.
   - **Rede:** download e upload, com mini gráfico.
 - **Descubra o que está pesando:** clique em CPU, Memória ou Disco para ver o top 10 de processos e usar **Finalizar tarefa**, com confirmação. Processos essenciais do Windows ficam protegidos.
 - **Três layouts:** compacto vertical (padrão), visão completa e faixa horizontal.
@@ -65,7 +65,7 @@
   - Clique atravessa o widget; segure **Ctrl** para interagir.
   - Some durante jogos e vídeos em tela cheia.
   - Inicia com o Windows.
-  - Opacidade e intervalo de atualização ajustáveis.
+  - Opacidade do widget e intervalo de atualização ajustáveis.
 - **Idiomas:** inglês (padrão) e português. Troque em *Configurações → Idioma*, ou escolha *Automático* para seguir o Windows.
 
 ¹ As temperaturas de CPU e disco são opcionais. Veja [Temperaturas e antivírus](#temperaturas-e-antivírus).
@@ -90,6 +90,34 @@ As configurações ficam em `%APPDATA%\PulseDock\settings.json`, e o log em `log
   - Ela usa o driver **WinRing0** da biblioteca [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), e só funciona com o PulseDock executando **como administrador**. O botão *Reiniciar como admin* fica na mesma seção.
   - O Microsoft Defender marca esse driver como `HackTool:Win32/Winring0`. Ele não é vírus, mas o driver tem uma falha conhecida.
   - Com a opção desligada, o driver nunca é extraído nem carregado.
+
+## Solução de problemas
+
+**A tela fica preta ou congela por um instante ao usar o navegador ou vídeo (notebooks com duas GPUs).** Corrigido na v0.2:
+- o widget não é mais uma janela com transparência por pixel;
+- ele não reenvia mais o "sempre no topo" a cada 2 s;
+- ele nunca acorda a GPU dedicada só para ler a temperatura.
+
+Se ainda acontecer, dá para desligar recursos um de cada vez:
+
+1. Saia do PulseDock (⋯ → *Sair*).
+2. Abra `%APPDATA%\PulseDock\settings.json` no Bloco de Notas e edite o bloco `Diagnostics`:
+
+   ```json
+   "Diagnostics": {
+     "GpuTemperature": "auto",       // "auto" (padrão) | "always" | "off"
+     "GpuCounters": true,            // false = não lê uso/memória das GPUs
+     "ReassertTopmost": false,       // true = comportamento antigo (reafirma "no topo" a cada 2 s)
+     "PerPixelTransparency": false   // true = comportamento antigo (janela com transparência por pixel)
+   }
+   ```
+3. Abra o PulseDock de novo.
+
+O `log.txt`, na mesma pasta, registra quais chaves estavam ativas na inicialização.
+
+Para o menor peso no sistema gráfico, mantenha a **opacidade em 100%** e o **clique atravessa desligado**. Os dois recursos exigem uma janela "em camadas", que custa mais para desenhar. O PulseDock só liga esse modo enquanto um deles está em uso.
+
+**A GPU dedicada aparece "em repouso", sem temperatura.** É proposital. Em notebooks com duas GPUs, a dedicada dorme quando não está em uso, e pedir a temperatura a ela a acordaria. A temperatura aparece assim que algo usa essa GPU.
 
 ## Compilar a partir do código
 

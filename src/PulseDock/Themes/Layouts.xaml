@@ -69,7 +69,7 @@
     </DataTemplate>
 
     <DataTemplate x:Key="ExpandedLayout">
-        <Border Width="320" Background="{Binding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12">
+        <Border Width="320" Background="{Binding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="{Binding FrameThickness}" CornerRadius="{Binding FrameRadius}">
             <StackPanel>
                 <!-- Header -->
                 <DockPanel Margin="14,6,6,6">
@@ -183,7 +183,7 @@
     </DataTemplate>
 
     <DataTemplate x:Key="CompactVerticalLayout">
-        <Border Width="290" Background="{Binding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="4,4,4,2">
+        <Border Width="290" Background="{Binding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="{Binding FrameThickness}" CornerRadius="{Binding FrameRadius}" Padding="4,4,4,2">
             <StackPanel>
                 <ItemsControl ItemsSource="{Binding Metrics}" ItemTemplate="{StaticResource CompactMetric}" Focusable="False" />
                 <ContentControl Content="{Binding}" ContentTemplate="{StaticResource CompactNetRow}" Focusable="False" />
@@ -200,14 +200,15 @@
             <StackPanel Orientation="Horizontal">
                 <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{Binding Brush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <TextBlock Text="{Binding ShortLabel}" FontSize="12" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBlock Text="{Binding ValueText}" Style="{StaticResource MonoValue}" FontSize="12" Margin="0,0,6,0" />
-                <TextBlock Text="{Binding DetailShort}" Style="{StaticResource MonoSmall}" />
+                <!-- Fixed minimum widths: changing numbers must not resize (and move) the window every second. -->
+                <TextBlock Text="{Binding ValueText}" Style="{StaticResource MonoValue}" FontSize="12" Margin="0,0,6,0" MinWidth="34" TextAlignment="Right" />
+                <TextBlock Text="{Binding DetailShort}" Style="{StaticResource MonoSmall}" MinWidth="100" />
             </StackPanel>
         </Button>
     </DataTemplate>
 
     <DataTemplate x:Key="CompactHorizontalLayout">
-        <Border Height="44" Background="{Binding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="4,0,4,0">
+        <Border Height="44" Background="{Binding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="{Binding FrameThickness}" CornerRadius="{Binding FrameRadius}" Padding="4,0,4,0">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <ItemsControl ItemsSource="{Binding Metrics}" ItemTemplate="{StaticResource StripMetric}" Focusable="False">
                     <ItemsControl.ItemsPanel>
@@ -218,7 +219,7 @@
                 </ItemsControl>
                 <Border Width="1" Height="18" Background="{StaticResource BorderBrush}" Margin="4,0" VerticalAlignment="Center"
                         Visibility="{Binding NetVisible, Converter={StaticResource BoolToVis}}" />
-                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="12" Margin="10,0"
+                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="12" Margin="10,0" MinWidth="170"
                            Visibility="{Binding NetVisible, Converter={StaticResource BoolToVis}}" ToolTip="{Binding NetName}">
                     <Run Text="↓" Foreground="{StaticResource DownBrush}" /><Run Text="{Binding NetDownCompact, Mode=OneWay}" Foreground="{StaticResource DownBrush}" />
                     <Run Text="  ↑" Foreground="{StaticResource UpBrush}" /><Run Text="{Binding NetUp, Mode=OneWay}" Foreground="{StaticResource UpBrush}" />

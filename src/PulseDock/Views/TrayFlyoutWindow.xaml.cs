@@ -13,7 +13,7 @@ namespace PulseDock.Views
         public TrayFlyoutWindow()
         {
             InitializeComponent();
-            SourceInitialized += (_, _) => WindowHelper.MakeToolWindow(this, noActivate: false);
+            SourceInitialized += (_, _) => { WindowHelper.MakeToolWindow(this, noActivate: false); WindowHelper.ApplyDwmFrame(this); };
             Deactivated += (_, _) => HideFlyout();
             PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) HideFlyout(); };
         }

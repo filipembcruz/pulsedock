@@ -539,11 +539,12 @@
     </Style>
 
     <!-- Default window frame -->
+    <!-- Corners and border come from DWM (Windows 11), not from per-pixel transparency. -->
     <Style x:Key="WindowFrame" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource BgBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="TextElement.FontFamily" Value="{StaticResource UiFont}" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource TextBrush}" />
     </Style>

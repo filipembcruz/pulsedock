@@ -190,6 +190,12 @@ namespace PulseDock.ViewModels
         public string FooterRight { get => _footerRight; private set => Set(ref _footerRight, value); }
         public Brush Background { get => _background; private set => Set(ref _background, value); }
 
+        private Thickness _frameThickness = new(0);
+        private CornerRadius _frameRadius = new(0);
+        /// <summary>Widget outline drawn by WPF (only in the legacy per-pixel mode; otherwise DWM draws it).</summary>
+        public Thickness FrameThickness { get => _frameThickness; private set => Set(ref _frameThickness, value); }
+        public CornerRadius FrameRadius { get => _frameRadius; private set => Set(ref _frameRadius, value); }
+
         public bool NetVisible { get => _netVisible; private set => Set(ref _netVisible, value); }
         public string NetName { get => _netName; private set => Set(ref _netName, value); }
         public string NetDown { get => _netDown; private set => Set(ref _netDown, value); }
@@ -217,7 +223,13 @@ namespace PulseDock.ViewModels
             Raise(nameof(IsCornerTL)); Raise(nameof(IsCornerTR)); Raise(nameof(IsCornerBL)); Raise(nameof(IsCornerBR)); Raise(nameof(PositionText));
             if (_locked != s.LockPosition) { _locked = s.LockPosition; Raise(nameof(IsPositionLocked)); }
 
-            var bg = new SolidColorBrush(Color.FromArgb((byte)Math.Round(s.Opacity / 100.0 * 255), 0x16, 0x18, 0x1D));
+            // Normal mode: opaque background; opacity is applied to the whole window (constant alpha).
+            // Legacy per-pixel mode: translucent background brush, as before.
+            bool perPixel = s.Diagnostics?.PerPixelTransparency == true;
+            byte alpha = perPixel ? (byte)Math.Round(s.Opacity / 100.0 * 255) : (byte)255;
+            var bg = new SolidColorBrush(Color.FromArgb(alpha, 0x16, 0x18, 0x1D));
+            FrameThickness = perPixel ? new Thickness(1) : new Thickness(0);
+            FrameRadius = perPixel ? new CornerRadius(10) : new CornerRadius(0);
             bg.Freeze();
             Background = bg;
 
@@ -317,8 +329,12 @@ namespace PulseDock.ViewModels
                     memShort = $"{Format.Fixed1(used)}G";
                 }
             }
-            vm.Detail = Format.Join(mem, Format.Temp(g.Temperature));
-            vm.DetailShort = Format.JoinShort(memShort, Format.Temp(g.Temperature, true));
+            // Idle dedicated GPU: temperature isn't read on purpose (reading it would wake the GPU).
+            string temp = g.Temperature.HasValue ? Format.Temp(g.Temperature) : g.Idle ? Loc.T("GpuIdle") : "";
+            string tempShort = g.Temperature.HasValue ? Format.Temp(g.Temperature, true) : g.Idle ? Loc.T("GpuIdleShort") : "";
+            vm.Detail = Format.Join(mem, temp);
+            vm.DetailShort = Format.JoinShort(memShort, tempShort);
+            if (g.Idle) vm.ToolTip = g.Name + " — " + Loc.T("GpuIdleTip");
         }
 
         private static void Push(Queue<double> q, double v)

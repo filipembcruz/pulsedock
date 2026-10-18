@@ -68,6 +68,20 @@ namespace PulseDock.Services
             set { _advanced = value; _wake.Set(); }
         }
 
+        /// <summary>Diagnostics: read GPU load/memory counters (set before Start).</summary>
+        public bool GpuCounters
+        {
+            get => _gpu.CountersEnabled;
+            set => _gpu.CountersEnabled = value;
+        }
+
+        /// <summary>Diagnostics: GPU temperature "auto" / "always" / "off".</summary>
+        public string GpuTemperatureMode
+        {
+            get => _gpu.TemperatureMode;
+            set => _gpu.TemperatureMode = string.IsNullOrWhiteSpace(value) ? "auto" : value.Trim().ToLowerInvariant();
+        }
+
         public void Start()
         {
             _thread = new Thread(Run) { IsBackground = true, Name = "SystemSampler", Priority = ThreadPriority.BelowNormal };

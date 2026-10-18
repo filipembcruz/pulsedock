@@ -10,6 +10,8 @@ namespace PulseDock.Models
         public double? Temperature { get; set; }
         public double? MemoryUsedMb { get; set; }
         public double? MemoryTotalMb { get; set; }
+        /// <summary>Dedicated GPU with ~no load (probably asleep on hybrid laptops); temperature isn't read.</summary>
+        public bool Idle { get; set; }
     }
 
     /// <summary>A complete system reading.</summary>

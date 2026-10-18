@@ -27,10 +27,16 @@ namespace PulseDock.Views
         /// <summary>Right-click anywhere on the widget.</summary>
         public event Action? MenuRequested;
 
-        public MonitorWindow()
+        public MonitorWindow(bool perPixelTransparency = false)
         {
             InitializeComponent();
-            Controller = new WidgetWindowController(this);
+            if (perPixelTransparency)
+            {
+                // Diagnostics only: the old per-pixel transparent window. Must be set before the HWND exists.
+                AllowsTransparency = true;
+                Background = System.Windows.Media.Brushes.Transparent;
+            }
+            Controller = new WidgetWindowController(this) { PerPixelTransparency = perPixelTransparency };
             SourceInitialized += (_, _) => Controller.Attach();
             SizeChanged += (_, _) => { if (!IsDragging) NeedsReposition?.Invoke(); };
             DpiChanged += (_, _) => { if (!IsDragging) NeedsReposition?.Invoke(); };

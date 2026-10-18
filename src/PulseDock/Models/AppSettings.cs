@@ -37,7 +37,7 @@ namespace PulseDock.Models
         public string? MonitorDevice { get; set; }
 
         /// <summary>Widget background opacity, 40–100.</summary>
-        public int Opacity { get; set; } = 92;
+        public int Opacity { get; set; } = 100;
 
         public int IntervalMs { get; set; } = 1000;
 
@@ -58,10 +58,34 @@ namespace PulseDock.Models
         /// <summary>"en" (default), "pt" or "auto" (follows the Windows language).</summary>
         public string Language { get; set; } = "en";
 
+        /// <summary>Bumped when a default changes in a way that should reset older saved values.</summary>
+        public int SettingsVersion { get; set; }
+
+        /// <summary>
+        /// Switches to isolate display problems (edit settings.json, then restart PulseDock).
+        /// Defaults are the safe values; see README → Troubleshooting.
+        /// </summary>
+        public DiagnosticsSettings Diagnostics { get; set; } = new();
+
         /// <summary>Drive letter of the monitored drive (without ':').</summary>
         public string DiskLetter { get; set; } = "C";
 
         public AppSettings Clone() => (AppSettings)MemberwiseClone();
+    }
+
+    public sealed class DiagnosticsSettings
+    {
+        /// <summary>GPU temperature: "auto" (only while the GPU is already busy), "always" or "off".</summary>
+        public string GpuTemperature { get; set; } = "auto";
+
+        /// <summary>Read GPU load / memory counters.</summary>
+        public bool GpuCounters { get; set; } = true;
+
+        /// <summary>Old behavior: re-assert "always on top" every 2 s. Off by default.</summary>
+        public bool ReassertTopmost { get; set; }
+
+        /// <summary>Old behavior: per-pixel transparent window (WPF AllowsTransparency). Off by default.</summary>
+        public bool PerPixelTransparency { get; set; }
     }
 
     public static class SettingsStore
@@ -69,6 +93,10 @@ namespace PulseDock.Models
         private static readonly JsonSerializerOptions Options = new()
         {
             WriteIndented = true,
+            // Users edit this file by hand (Diagnostics): tolerate comments, trailing commas and any casing.
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+            PropertyNameCaseInsensitive = true,
             Converters = { new JsonStringEnumConverter() }
         };
 
@@ -116,6 +144,13 @@ namespace PulseDock.Models
 
         private static AppSettings Sanitize(AppSettings s)
         {
+            if (s.SettingsVersion < 2)
+            {
+                // v2: background transparency is now whole-window alpha; start opaque (cheapest for DWM).
+                s.Opacity = 100;
+                s.SettingsVersion = 2;
+            }
+            s.Diagnostics ??= new DiagnosticsSettings();
             s.Opacity = Math.Clamp(s.Opacity, 40, 100);
             s.EdgeMargin = Math.Clamp(s.EdgeMargin, 0, 400);
             s.IntervalMs = Math.Clamp(s.IntervalMs, 250, 10000);

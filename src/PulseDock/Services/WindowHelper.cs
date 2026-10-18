@@ -193,6 +193,27 @@ namespace PulseDock.Services
             return (corner, screen.Primary ? null : screen.DeviceName, r.Left, r.Top);
         }
 
+        /// <summary>
+        /// Windows 11: rounded corners and a subtle border drawn by DWM for our borderless,
+        /// non-transparent windows (replaces the per-pixel transparent rounded corners).
+        /// </summary>
+        public static void ApplyDwmFrame(Window w)
+        {
+            var hwnd = Hwnd(w);
+            if (hwnd == IntPtr.Zero) return;
+            try
+            {
+                int corner = Native.DWMWCP_ROUND;
+                Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
+                int border = 0x003B322E; // COLORREF (0x00BBGGRR) for #2E323B
+                Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_BORDER_COLOR, ref border, sizeof(int));
+            }
+            catch
+            {
+                // dwmapi missing or attribute unsupported (Windows 10): square corners, no border.
+            }
+        }
+
         public static void BringToTopmost(Window w)
         {
             var hwnd = Hwnd(w);
@@ -212,19 +233,32 @@ namespace PulseDock.Services
         private IntPtr _hwnd;
         private bool _pinnedToDesktop;
         private bool _clickThrough;
+        private bool _clickThroughAllowed;
+        private int _opacity = 100;
+        private DisplayMode? _appliedMode;
 
         public WidgetWindowController(Window window) => _window = window;
+
+        /// <summary>Legacy per-pixel transparent window (AllowsTransparency): WPF owns the layering.</summary>
+        public bool PerPixelTransparency { get; set; }
 
         public void Attach()
         {
             _hwnd = WindowHelper.Hwnd(_window);
             WindowHelper.MakeToolWindow(_window, noActivate: true);
+            if (!PerPixelTransparency) WindowHelper.ApplyDwmFrame(_window);
             HwndSource.FromHwnd(_hwnd)?.AddHook(Hook);
+            UpdateLayering();
         }
 
+        /// <summary>
+        /// Applies overlay / desktop / tray z-order. Only acts when the mode really changes:
+        /// re-sending HWND_TOPMOST makes DWM re-evaluate the window stack (and overlay planes).
+        /// </summary>
         public void ApplyMode(DisplayMode mode)
         {
-            if (_hwnd == IntPtr.Zero) return;
+            if (_hwnd == IntPtr.Zero || _appliedMode == mode) return;
+            _appliedMode = mode;
 
             if (mode == DisplayMode.Desktop)
             {
@@ -241,17 +275,62 @@ namespace PulseDock.Services
                 _pinnedToDesktop = false;
                 Native.SetWindowLong(_hwnd, Native.GWLP_HWNDPARENT, 0);
                 _window.Topmost = mode == DisplayMode.Overlay;
-                if (mode == DisplayMode.Overlay) WindowHelper.BringToTopmost(_window);
+            }
+        }
+
+        /// <summary>Whole-window opacity, 40–100. 100 = not a layered window at all.</summary>
+        public void SetOpacity(int percent)
+        {
+            percent = Math.Clamp(percent, 40, 100);
+            if (percent == _opacity) return;
+            _opacity = percent;
+            UpdateLayering();
+        }
+
+        /// <summary>Click-through is only possible when the user enabled the feature.</summary>
+        public void SetClickThroughAllowed(bool allowed)
+        {
+            _clickThroughAllowed = allowed;
+            if (!allowed) SetClickThrough(false);
+        }
+
+        /// <summary>
+        /// WS_EX_LAYERED makes WPF present through the layered path (readback + UpdateLayeredWindow
+        /// on every frame), so the window is layered ONLY while it really needs to be:
+        /// opacity below 100%, or click-through currently active (it needs WS_EX_LAYERED|WS_EX_TRANSPARENT).
+        /// </summary>
+        private void UpdateLayering()
+        {
+            if (_hwnd == IntPtr.Zero || PerPixelTransparency) return;
+            long style = Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE);
+            bool wantLayered = _opacity < 100 || _clickThrough;
+            bool isLayered = (style & Native.WS_EX_LAYERED) != 0;
+            long next = wantLayered ? style | Native.WS_EX_LAYERED : style & ~Native.WS_EX_LAYERED;
+            next = _clickThrough ? next | Native.WS_EX_TRANSPARENT : next & ~Native.WS_EX_TRANSPARENT;
+
+            if (next != style) Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, next);
+            if (wantLayered) Native.SetLayeredWindowAttributes(_hwnd, 0, (byte)Math.Round(_opacity * 2.55), Native.LWA_ALPHA);
+
+            if (wantLayered != isLayered)
+            {
+                // Make WPF pick up the layered/non-layered change now (it re-reads the style on window-pos changes).
+                Native.SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE | Native.SWP_FRAMECHANGED);
+                _window.InvalidateVisual();
             }
         }
 
         public void SetClickThrough(bool on)
         {
             if (on == _clickThrough || _hwnd == IntPtr.Zero) return;
+            if (on && !_clickThroughAllowed && !PerPixelTransparency) return;
             _clickThrough = on;
-            WindowHelper.ModifyExStyle(_window,
-                on ? Native.WS_EX_TRANSPARENT | Native.WS_EX_LAYERED : 0,
-                on ? 0 : Native.WS_EX_TRANSPARENT);
+            if (PerPixelTransparency)
+            {
+                WindowHelper.ModifyExStyle(_window, on ? Native.WS_EX_TRANSPARENT : 0, on ? 0 : Native.WS_EX_TRANSPARENT);
+                return;
+            }
+            UpdateLayering();
         }
 
         private IntPtr Hook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

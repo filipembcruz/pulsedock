@@ -13,8 +13,13 @@ namespace PulseDock.Services
     /// <summary>
     /// GPUs without an extra driver: the same sources as Task Manager.
     /// - List, name, total VRAM and temperature: D3DKMT (gdi32), per adapter.
-    /// - Load: "GPU Engine" counters (busiest engine, summed across processes).
-    /// - Memory in use: "GPU Adapter Memory" counters.
+    /// - Load: "\GPU Engine(*)\Utilization Percentage" via PDH (busiest engine, summed across processes).
+    /// - Memory in use: "\GPU Adapter Memory(*)\..." via PDH.
+    ///
+    /// Hybrid laptops (NVIDIA Optimus / AMD switchable): the dedicated GPU sleeps when idle.
+    /// Asking it for its temperature (KMTQAITYPE_ADAPTERPERFDATA) wakes it up, and every power-up
+    /// stalls the graphics kernel for a moment. So the dedicated GPU's temperature is only read
+    /// while that GPU is already busy (load above IdleThreshold), and at most every TempIntervalSec.
     /// Use only on the sampler thread.
     /// </summary>
     public sealed class GpuSensors : IDisposable
@@ -28,11 +33,25 @@ namespace PulseDock.Services
             public bool Integrated;
             public ulong DedicatedBytes;
             public bool TempSupported = true;
+            public double? LastTemp;
+            public DateTime LastTempRead = DateTime.MinValue;
+            public int TempFailures;
         }
 
+        private const string EnginePath = @"\GPU Engine(*)\Utilization Percentage";
+        private const string DedicatedPath = @"\GPU Adapter Memory(*)\Dedicated Usage";
+        private const string SharedPath = @"\GPU Adapter Memory(*)\Shared Usage";
+        private const double IdleThreshold = 2.0;   // % load below which a dedicated GPU counts as idle
+        private const double TempIntervalSec = 5.0;
+
         private readonly List<Adapter> _adapters = new();
-        private Dictionary<string, CounterSample> _prevEngine = new();
-        private bool _countersAvailable;
+        private PdhQuery? _pdh;
+
+        /// <summary>Diagnostics: read GPU load/memory counters at all.</summary>
+        public bool CountersEnabled { get; set; } = true;
+
+        /// <summary>Diagnostics: "auto" (default, only when active), "always" or "off".</summary>
+        public string TemperatureMode { get; set; } = "auto";
 
         private static readonly Regex EngineRx = new(
             @"luid_0x([0-9a-fA-F]+)_0x([0-9a-fA-F]+)_phys_(\d+)_eng_(\d+)_engtype_",
@@ -47,29 +66,33 @@ namespace PulseDock.Services
             try
             {
                 EnumerateAdapters();
-                Log.Info("GPUs: " + string.Join(", ", _adapters.Select(a => $"{a.Name} ({(a.Integrated ? "integrada" : "dedicada")}, {a.DedicatedBytes / (1024 * 1024)} MB)")));
+                Log.Info("GPUs: " + string.Join(", ", _adapters.Select(a => $"{a.Name} ({(a.Integrated ? "integrated" : "dedicated")}, {a.DedicatedBytes / (1024 * 1024)} MB)")));
             }
             catch (Exception ex)
             {
                 Log.Error("GpuSensors.Enumerate", ex);
             }
 
+            if (!CountersEnabled) return;
             try
             {
-                _countersAvailable = PerformanceCounterCategory.Exists("GPU Engine");
-                if (_countersAvailable) DropAdaptersWithoutEngines();
+                _pdh = PdhQuery.Create(EnginePath, DedicatedPath, SharedPath);
+                if (_pdh != null) DropAdaptersWithoutEngines();
             }
             catch (Exception ex)
             {
                 Log.Error("GpuSensors.Counters", ex);
-                _countersAvailable = false;
+                _pdh = null;
             }
         }
 
         /// <summary>Virtual monitors (e.g. remote access apps) show up as adapters with no engines: remove them.</summary>
         private void DropAdaptersWithoutEngines()
         {
-            var names = new PerformanceCounterCategory("GPU Engine").GetInstanceNames();
+            if (_pdh == null || !_pdh.Has(EnginePath)) return;
+            _pdh.Collect();
+            var names = _pdh.Read(EnginePath).Select(x => x.instance).ToList();
+            if (names.Count == 0) return;
             bool HasEngines(Adapter a)
             {
                 string tag = $"luid_0x{unchecked((uint)a.LuidHigh):X8}_0x{a.LuidLow:X8}";
@@ -87,19 +110,23 @@ namespace PulseDock.Services
             var result = new List<GpuReading>();
             if (_adapters.Count == 0) return result;
 
-            Dictionary<(int, uint), double> load = _countersAvailable ? ReadEngineLoad() : new();
-            Dictionary<(int, uint), (double dedicated, double shared)> mem = _countersAvailable ? ReadMemory() : new();
+            bool counters = CountersEnabled && _pdh != null && _pdh.Collect();
+            var load = counters ? ReadEngineLoad() : new Dictionary<(int, uint), double>();
+            var mem = counters ? ReadMemory() : new Dictionary<(int, uint), (double dedicated, double shared)>();
 
             foreach (var a in _adapters)
             {
                 var key = (a.LuidHigh, a.LuidLow);
+                double? l = load.TryGetValue(key, out var lv) ? Math.Clamp(lv, 0, 100) : (counters ? 0d : (double?)null);
                 var g = new GpuReading
                 {
                     Name = a.Name,
                     Integrated = a.Integrated,
-                    Load = load.TryGetValue(key, out var l) ? Math.Clamp(l, 0, 100) : (_countersAvailable ? 0d : (double?)null),
-                    Temperature = ReadTemperature(a)
+                    Load = l,
+                    // Without counters we can't tell if it's awake, so never call it idle.
+                    Idle = !a.Integrated && counters && (l ?? 0) < IdleThreshold
                 };
+                g.Temperature = ReadTemperature(a, g.Idle, counters);
                 if (mem.TryGetValue(key, out var m))
                 {
                     g.MemoryUsedMb = (a.Integrated ? m.shared : m.dedicated) / (1024.0 * 1024.0);
@@ -175,62 +202,56 @@ namespace PulseDock.Services
             {
                 Marshal.FreeHGlobal(e.pAdapters);
             }
-
         }
 
-        private static double? ReadTemperature(Adapter a)
+        private double? ReadTemperature(Adapter a, bool idle, bool haveLoad)
         {
-            if (!a.TempSupported) return null;
+            if (!a.TempSupported || TemperatureMode == "off") return null;
+
+            bool auto = TemperatureMode != "always";
+            // Dedicated GPU: never wake it just to read a number. Without load counters we can't
+            // know whether it's awake, so in auto mode we don't ask at all.
+            if (auto && !a.Integrated && (idle || !haveLoad))
+            {
+                a.LastTemp = null;
+                a.LastTempRead = DateTime.MinValue; // read right away when it wakes up
+                return null;
+            }
+
+            // Temperature changes slowly: reuse the last value between reads.
+            if ((DateTime.UtcNow - a.LastTempRead).TotalSeconds < TempIntervalSec) return a.LastTemp;
+            a.LastTempRead = DateTime.UtcNow;
+
             var perf = new D3DKMT_ADAPTER_PERFDATA { PhysicalAdapterIndex = 0 };
             if (!Query(a.Handle, KMTQAITYPE_ADAPTERPERFDATA, ref perf))
             {
-                a.TempSupported = false; // old Windows or unsupported driver: don't try again
+                // The GPU may have powered down between the load sample and this query: only give up
+                // after several failures in a row (old Windows or a driver without support).
+                if (++a.TempFailures >= 3) a.TempSupported = false;
+                a.LastTemp = null;
                 return null;
             }
+            a.TempFailures = 0;
             // Value in tenths of a degree; 0 = not reported.
-            if (perf.Temperature == 0 || perf.Temperature > 1500) return null;
-            return perf.Temperature / 10.0;
+            a.LastTemp = perf.Temperature == 0 || perf.Temperature > 1500 ? null : perf.Temperature / 10.0;
+            return a.LastTemp;
         }
 
-        // ---------------- Counters ----------------
+        // ---------------- Counters (PDH) ----------------
 
         private Dictionary<(int, uint), double> ReadEngineLoad()
         {
             var perEngine = new Dictionary<(int, uint, string), double>();
-            var next = new Dictionary<string, CounterSample>();
-            try
+            foreach (var (instance, v) in _pdh!.Read(EnginePath))
             {
-                var data = new PerformanceCounterCategory("GPU Engine").ReadCategory();
-                InstanceDataCollection? util = null;
-                foreach (InstanceDataCollection c in data.Values)
-                {
-                    if (string.Equals(c.CounterName, "Utilization Percentage", StringComparison.OrdinalIgnoreCase)) { util = c; break; }
-                }
-                if (util == null) return new();
-
-                foreach (InstanceData d in util.Values)
-                {
-                    var sample = d.Sample;
-                    next[d.InstanceName] = sample;
-                    if (!_prevEngine.TryGetValue(d.InstanceName, out var prev)) continue;
-
-                    var m = EngineRx.Match(d.InstanceName);
-                    if (!m.Success) continue;
-                    int high = unchecked((int)uint.Parse(m.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
-                    uint low = uint.Parse(m.Groups[2].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                    string engine = m.Groups[3].Value + "_" + m.Groups[4].Value;
-
-                    float v = CounterSample.Calculate(prev, sample);
-                    if (float.IsNaN(v) || v <= 0) continue;
-                    var k = (high, low, engine);
-                    perEngine[k] = (perEngine.TryGetValue(k, out var acc) ? acc : 0) + v;
-                }
+                if (v <= 0) continue;
+                var m = EngineRx.Match(instance);
+                if (!m.Success) continue;
+                int high = unchecked((int)uint.Parse(m.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+                uint low = uint.Parse(m.Groups[2].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                var k = (high, low, m.Groups[3].Value + "_" + m.Groups[4].Value);
+                perEngine[k] = (perEngine.TryGetValue(k, out var acc) ? acc : 0) + v;
             }
-            catch (Exception ex)
-            {
-                Log.Error("GPU Engine", ex);
-            }
-            _prevEngine = next;
 
             // GPU usage = busiest engine (same criterion as Task Manager).
             var result = new Dictionary<(int, uint), double>();
@@ -242,41 +263,32 @@ namespace PulseDock.Services
             return result;
         }
 
-        private static Dictionary<(int, uint), (double dedicated, double shared)> ReadMemory()
+        private Dictionary<(int, uint), (double dedicated, double shared)> ReadMemory()
         {
-            var result = new Dictionary<(int, uint), (double, double)>();
-            try
+            var result = new Dictionary<(int, uint), (double dedicated, double shared)>();
+            void Add(string path, bool dedicated)
             {
-                if (!PerformanceCounterCategory.Exists("GPU Adapter Memory")) return result;
-                var data = new PerformanceCounterCategory("GPU Adapter Memory").ReadCategory();
-                foreach (InstanceDataCollection c in data.Values)
+                foreach (var (instance, v) in _pdh!.Read(path))
                 {
-                    bool dedicated = string.Equals(c.CounterName, "Dedicated Usage", StringComparison.OrdinalIgnoreCase);
-                    bool shared = string.Equals(c.CounterName, "Shared Usage", StringComparison.OrdinalIgnoreCase);
-                    if (!dedicated && !shared) continue;
-
-                    foreach (InstanceData d in c.Values)
-                    {
-                        var m = MemoryRx.Match(d.InstanceName);
-                        if (!m.Success) continue;
-                        int high = unchecked((int)uint.Parse(m.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
-                        uint low = uint.Parse(m.Groups[2].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                        var key = (high, low);
-                        result.TryGetValue(key, out var cur);
-                        double v = Math.Max(0, d.RawValue);
-                        result[key] = dedicated ? (cur.Item1 + v, cur.Item2) : (cur.Item1, cur.Item2 + v);
-                    }
+                    var m = MemoryRx.Match(instance);
+                    if (!m.Success) continue;
+                    int high = unchecked((int)uint.Parse(m.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+                    uint low = uint.Parse(m.Groups[2].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    var key = (high, low);
+                    result.TryGetValue(key, out var cur);
+                    double b = Math.Max(0, v);
+                    result[key] = dedicated ? (cur.dedicated + b, cur.shared) : (cur.dedicated, cur.shared + b);
                 }
             }
-            catch (Exception ex)
-            {
-                Log.Error("GPU Adapter Memory", ex);
-            }
+            Add(DedicatedPath, true);
+            Add(SharedPath, false);
             return result;
         }
 
         public void Dispose()
         {
+            _pdh?.Dispose();
+            _pdh = null;
             foreach (var a in _adapters) Close(a.Handle);
             _adapters.Clear();
         }

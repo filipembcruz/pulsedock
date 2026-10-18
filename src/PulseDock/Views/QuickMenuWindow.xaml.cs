@@ -15,7 +15,7 @@ namespace PulseDock.Views
         public QuickMenuWindow()
         {
             InitializeComponent();
-            SourceInitialized += (_, _) => WindowHelper.MakeToolWindow(this, noActivate: false);
+            SourceInitialized += (_, _) => { WindowHelper.MakeToolWindow(this, noActivate: false); WindowHelper.ApplyDwmFrame(this); };
             Deactivated += (_, _) => HideMenu();
             PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) HideMenu(); };
             // Alt+F4: just hide, so it can be reopened.

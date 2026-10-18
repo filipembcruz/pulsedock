@@ -25,6 +25,7 @@ namespace PulseDock.Services
         public const uint SWP_NOMOVE = 0x0002;
         public const uint SWP_NOZORDER = 0x0004;
         public const uint SWP_NOACTIVATE = 0x0010;
+        public const uint SWP_FRAMECHANGED = 0x0020;
         public const uint SWP_NOOWNERZORDER = 0x0200;
 
         public const int WM_WINDOWPOSCHANGING = 0x0046;
@@ -51,6 +52,22 @@ namespace PulseDock.Services
 
         [DllImport("user32.dll")]
         public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+        // Constant (whole-window) alpha. Note: for WPF windows any WS_EX_LAYERED window still goes through
+        // WPF's layered present path, so PulseDock only makes the widget layered when it must
+        // (opacity < 100% or click-through active).
+        public const uint LWA_ALPHA = 0x2;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetLayeredWindowAttributes(IntPtr hWnd, uint crKey, byte bAlpha, uint dwFlags);
+
+        // Windows 11 rounded corners and border color for borderless windows (ignored on Windows 10).
+        public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+        public const int DWMWA_BORDER_COLOR = 34;
+        public const int DWMWCP_ROUND = 2;
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         public static extern IntPtr FindWindow(string? className, string? windowName);

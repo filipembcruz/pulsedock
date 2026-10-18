@@ -27,6 +27,8 @@ namespace PulseDock.Services
         private readonly DispatcherTimer _fastTimer;   // Ctrl for click-through
         private readonly DispatcherTimer _slowTimer;   // fullscreen + topmost reassertion
         private bool _hiddenForFullscreen;
+        private bool _lastFullscreen;
+        private int _fullscreenStreak;
         private bool _userHidden;
         private bool _disposed;
 
@@ -45,7 +47,7 @@ namespace PulseDock.Services
                 setCorner: c => Mutate(s => { s.Corner = c; s.Position = PositionMode.Corner; }),
                 setLock: locked => Mutate(s => s.LockPosition = locked));
 
-            _widget = new MonitorWindow { DataContext = _vm };
+            _widget = new MonitorWindow(_settings.Diagnostics.PerPixelTransparency) { DataContext = _vm };
             _widget.NeedsReposition += QueueReposition;
             _widget.DragCompleted += OnDragCompleted;
             _widget.MenuRequested += ShowQuickMenu;
@@ -68,6 +70,10 @@ namespace PulseDock.Services
 
             _sampler.IntervalMs = _settings.IntervalMs;
             _sampler.DiskLetter = _settings.DiskLetter;
+            _sampler.GpuCounters = _settings.Diagnostics.GpuCounters;
+            _sampler.GpuTemperatureMode = _settings.Diagnostics.GpuTemperature;
+            Log.Info($"Start: PerPixel={_settings.Diagnostics.PerPixelTransparency} Reassert={_settings.Diagnostics.ReassertTopmost} " +
+                     $"GpuCounters={_settings.Diagnostics.GpuCounters} GpuTemp={_settings.Diagnostics.GpuTemperature} Opacity={_settings.Opacity}");
             _sampler.Sampled += snap =>
             {
                 var d = Application.Current?.Dispatcher;
@@ -129,6 +135,9 @@ namespace PulseDock.Services
             }
             _vm.ApplySettings(_settings);
             _widget.CanDrag = !_settings.LockPosition;
+            _widget.Controller.SetOpacity(_settings.Opacity);
+            _widget.Controller.SetClickThroughAllowed(_settings.ClickThrough && _settings.Mode == DisplayMode.Overlay);
+            _sampler.GpuTemperatureMode = _settings.Diagnostics.GpuTemperature;
             _sampler.IntervalMs = _settings.IntervalMs;
             _sampler.DiskLetter = _settings.DiskLetter;
             // Only makes sense as admin; without admin the driver isn't even extracted (avoids the antivirus alert).
@@ -252,7 +261,13 @@ namespace PulseDock.Services
         {
             if (_settings.Mode == DisplayMode.Tray) return;
 
-            bool fullscreen = _settings.Mode == DisplayMode.Overlay && _settings.HideInFullscreen && Native.IsFullscreenAppRunning();
+            // Debounced: only act after two equal readings in a row (4 s), so a browser switching
+            // between windowed and full screen can't make the widget hide/show in a loop.
+            bool raw = _settings.Mode == DisplayMode.Overlay && _settings.HideInFullscreen && Native.IsFullscreenAppRunning();
+            _fullscreenStreak = raw == _lastFullscreen ? _fullscreenStreak + 1 : 1;
+            _lastFullscreen = raw;
+            if (_fullscreenStreak < 2) return;
+            bool fullscreen = raw;
             if (fullscreen && !_hiddenForFullscreen)
             {
                 _hiddenForFullscreen = true;
@@ -264,8 +279,9 @@ namespace PulseDock.Services
                 ShowWidgetIfAllowed();
             }
 
-            // Other "always on top" apps may get in front; reassert.
-            // Skip this while the menu or details are open, so we don't cover them.
+            // Old behavior (diagnostics only): re-send HWND_TOPMOST every 2 s. Off by default: it makes
+            // DWM re-evaluate the window stack and overlay planes over and over while you use other apps.
+            if (!_settings.Diagnostics.ReassertTopmost) return;
             bool popupOpen = (_menu != null && _menu.IsVisible) || (_details != null && _details.IsVisible);
             if (_settings.Mode == DisplayMode.Overlay && _widget.IsVisible && !popupOpen && !_widget.IsDragging)
                 WindowHelper.BringToTopmost(_widget);

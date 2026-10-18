@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using PulseDock.Services;
 
 namespace PulseDock.Views
 {
@@ -8,6 +9,7 @@ namespace PulseDock.Views
         public DetailsWindow()
         {
             InitializeComponent();
+            SourceInitialized += (_, _) => WindowHelper.ApplyDwmFrame(this);
             PreviewKeyDown += (_, e) =>
             {
                 if (e.Key == Key.Escape)

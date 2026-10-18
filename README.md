@@ -45,7 +45,7 @@
   - **CPU:** usage, clock and temperature¹.
   - **Memory:** used / total.
   - **Disk:** activity, read and write speed, and temperature¹.
-  - **GPU 0 (integrated) and GPU 1 (dedicated):** usage, VRAM and temperature.
+  - **GPU 0 (integrated) and GPU 1 (dedicated):** usage, VRAM and temperature. The dedicated GPU's temperature shows while it's in use, so it is never woken up.
   - **Network:** download and upload, with a mini chart.
 - **Find what's slowing you down:** click CPU, Memory or Disk to see the top 10 processes and **End task** with a confirmation. Critical Windows processes are protected.
 - **Three layouts:** compact vertical (default), full view and horizontal strip.
@@ -62,7 +62,7 @@
   - Click-through, hold **Ctrl** to interact.
   - Hide while a full-screen game or video is running.
   - Start with Windows.
-  - Adjustable opacity and refresh rate.
+  - Adjustable widget opacity and refresh rate.
 - **Languages:** English (default) and Português. Change it in *Settings → Language*, or choose *Automatic* to follow Windows.
 
 ¹ CPU and disk temperatures are optional. See [Temperatures & antivirus](#temperatures--antivirus).
@@ -87,6 +87,34 @@ Settings are stored in `%APPDATA%\PulseDock\settings.json`, and the log in `log.
   - They use the **WinRing0** driver from [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), and only work when PulseDock runs **as administrator**. The *Restart as admin* button is in the same section.
   - Microsoft Defender flags that driver as `HackTool:Win32/Winring0`. It isn't malware, but the driver has a known vulnerability.
   - While the option is off, the driver is never extracted or loaded.
+
+## Troubleshooting
+
+**Screen goes black / freezes for a moment while using a browser or video (hybrid-GPU laptops).** Fixed in v0.2:
+- the widget is no longer a per-pixel transparent window;
+- it no longer re-sends "always on top" every 2 s;
+- it never wakes the dedicated GPU just to read its temperature.
+
+If you still see it, you can switch features off one at a time:
+
+1. Quit PulseDock (⋯ → *Quit*).
+2. Open `%APPDATA%\PulseDock\settings.json` in Notepad and edit the `Diagnostics` block:
+
+   ```json
+   "Diagnostics": {
+     "GpuTemperature": "auto",       // "auto" (default) | "always" | "off"
+     "GpuCounters": true,            // false = don't read GPU load/memory at all
+     "ReassertTopmost": false,       // true = old behavior (re-assert on-top every 2 s)
+     "PerPixelTransparency": false   // true = old behavior (per-pixel transparent window)
+   }
+   ```
+3. Start PulseDock again.
+
+`log.txt` (same folder) records which switches were active at startup.
+
+For the lightest load on the graphics system, keep **opacity at 100%** and **click-through off**. Both features need a "layered" window, which costs more to draw. PulseDock only turns layering on while one of them is in use.
+
+**The dedicated GPU shows "idle" with no temperature.** This is intentional. On laptops with two GPUs, the dedicated one sleeps when unused, and asking it for its temperature would wake it up. The temperature appears as soon as something uses that GPU.
 
 ## Build from source
 
